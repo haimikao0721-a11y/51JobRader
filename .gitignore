@@ -1,0 +1,32 @@
+# ── 环境 ──
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# ── 项目密钥 / 登录态 ──
+cookies.json
+*.key
+*secret*
+*token*
+*credential*
+
+# ── IDE / 编辑器 ──
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── Claude ──
+CLAUDE.md
+.claude/
+
+# ── 系统 ──
+.DS_Store
+Thumbs.db
