@@ -23,7 +23,24 @@ tools = [
                 "required": ["keyword"],
             },
         },
-    }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_bing",
+            "description": "在Bing搜索公司信息，返回 title / url / snippet / content（含页面正文）",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "搜索关键词，如 长沙节点薪火信息有限公司、上海米哈游公司",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
 ]
 
 
@@ -39,4 +56,10 @@ def run_tool(name: str, args: dict):
                 if c.strip()
             ]
         return asyncio.run(collect_jobs(**args))
+
+    if name == "search_bing":
+        from tools.websearch import search_bing
+
+        return asyncio.run(search_bing(**args))
+
     raise ValueError(f"未知工具: {name}")
