@@ -21,8 +21,8 @@ python main.py --resume "D:/简历.pdf"
 # 4. 直接搜索职位（跳过 AI 对话）
 python main.py search "python开发" --city 深圳,上海
 
-# 5. 直接 Bing 搜索
-python main.py web "米哈游 公司背景"
+# 5. 直接 Bing 搜索（--count 可选，默认 5）
+python main.py web "米哈游 公司背景" --count 10
 
 # 6. 解析简历
 python main.py resume "xxx.pdf"
@@ -110,6 +110,68 @@ tools/                      # 工具层，被 ai_tools.py 按需调用
 5. **反爬策略** — 当前仅做了 UA 伪装，后续可加入随机 IP（代理池）、随机延迟、浏览器指纹伪装
 6. **工具函数签名统一** — 当前 `run_tool` 对 `collect_jobs` 做了参数转换（`city` → `cit_list`），后续可统一入参规范
 7. **结果输出格式化** — 支持输出为 JSON / Markdown / Excel，方便留存或分享
+
+## 上下文压缩（tools/compress.py）
+
+当对话历史接近 token 上限时，自动将历史记录压缩为结构化 MD 摘要，注入到 system 和 user 之间作为上下文，避免长对话超出模型限制。
+
+### 可调参数
+
+| 参数 | 位置 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--max-context` | 启动参数 | 256000 | 模型最大上下文 token 数，压缩阈值自动设为 70%（如 256K → 180K 触发） |
+| `max_tokens` | `compress_messages()` 参数 | 2000 | 压缩后 MD 摘要的 token 上限 |
+| `keep_last` | `compress_messages()` 参数 | 2 | 保留最近 N 轮完整对话不压缩 |
+
+### 压缩范围
+
+| 内容 | 压缩策略 | 是否压缩 |
+|------|---------|---------|
+| **System Prompt** | 始终保持不变 |  不压缩 |
+| **用户输入** | 截取前 200 字 → `> **用户**: ...` |  压缩 |
+| **AI 文本回复** | 截取前 300 字 → `> **AI**: ...` |  压缩 |
+| **AI 工具调用** | 只保留工具名和参数 → `> **AI 调用了 collect_jobs** — 参数: {...}` |  压缩 |
+| **工具返回结果** | 截取前 200 字 → `> **工具返回**: ...` |  压缩 |
+| **最近 N 轮对话** | 保持完整，不做任何处理 |  不压缩 |
+
+> 最近 N 轮默认 `keep_last=2`，即保留最近 2 轮用户 + AI 的完整对话。
+
+### 可调策略
+
+在 `tools/compress.py` 的 `_to_md()` 函数中可自定义：
+
+| 策略 | 当前行为 | 可改为 |
+|------|---------|--------|
+| **摘要截断** | 用户输入保留前 200 字，AI 回复保留前 300 字 | 改为全文保留、或仅提取关键词、或按段落截取 |
+| **工具结果处理** | 工具返回数据截取前 200 字 | 改为只保留工具名+关键字段，或丢弃工具返回只保留结论 |
+| **保留轮数** | 保留最近 2 轮完整对话（`keep_last=2`） | 改为 3-5 轮，或按 token 数动态保留 |
+| **压缩格式** | 结构化 MD（`> **用户**: ...` 格式） | 改为纯文本、JSON、或表格 |
+| **触发时机** | 每次工具调用和 AI 回复后检查 | 改为仅工具调用后、或仅用户输入后、或固定间隔 |
+
+### 修改示例
+
+通过启动参数调整：
+
+```bash
+# DeepSeek 默认 256K，什么也不用改
+python main.py
+
+# 模型支持 1M 上下文（如 Claude），在 700K token 时触发压缩
+python main.py --max-context 1000000
+
+# 更激进，400K 就触发压缩
+python main.py --max-context 400000
+```
+
+通过代码传参（`tools/compress.py`）：
+
+```python
+# 更激进：阈值设低、摘要更短、只保留 1 轮
+messages, report = check_and_compress(messages, warn_threshold=150_000, max_tokens=1000)
+
+# 更保守：保留 3 轮完整对话
+messages, report = check_and_compress(messages, warn_threshold=200_000, keep_last=3)
+```
 
 ## 技术栈
 

@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ai_config import client
 from ai_prompt import SYSTEM_PROMPT
 from ai_tools import tools, run_tool
+from tools.compress import check_and_compress
 
 
 def _inject_resume(path: str) -> str:
@@ -24,6 +25,10 @@ def _inject_resume(path: str) -> str:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--resume", help="简历文件路径（.pdf / .txt / .md）")
+    parser.add_argument(
+        "--max-context", type=int, default=256000,
+        help="最大上下文 token 数（默认 256000），压缩阈值自动设为 70%",
+    )
     args, _ = parser.parse_known_args()
 
     system_content = SYSTEM_PROMPT
@@ -32,7 +37,8 @@ def main():
         system_content += f"\n\n## 用户简历\n{resume_text}"
 
     messages = [{"role": "system", "content": system_content}]
-    print("职位采集助手已启动（输入 exit 退出）")
+    warn_threshold = int(args.max_context * 0.7)
+    print(f"职位采集助手已启动（最大上下文 {args.max_context:,} tokens，压缩阈值 {warn_threshold:,} tokens）")
     if args.resume:
         print(f"📄 已加载简历: {args.resume}")
     print("=" * 50)
@@ -70,6 +76,11 @@ def main():
                         reply += delta.content
                 print()
                 messages.append({"role": "assistant", "content": reply})
+
+                # 回复后检查 token 用量
+                messages, report = check_and_compress(messages, warn_threshold=warn_threshold)
+                if report:
+                    print(f"\n[压缩] {report}")
                 break
 
             messages.append(
@@ -104,6 +115,11 @@ def main():
                         "content": json.dumps(result, ensure_ascii=False),
                     }
                 )
+
+            # 工具返回后检查 token 用量，接近阈值则压缩
+            messages, report = check_and_compress(messages, warn_threshold=warn_threshold)
+            if report:
+                print(f"\n[压缩] {report}")
 
 
 if __name__ == "__main__":

@@ -1,16 +1,27 @@
 """JobRadar — CLI 统一入口"""
 
 import sys
+import os
 import argparse
+
+# 确保各模块目录能正常导入
+_project_root = os.path.dirname(os.path.abspath(__file__))
+for subdir in ("agent", "tools", "tools/playwright"):
+    sys.path.insert(0, os.path.join(_project_root, subdir))
 
 
 def cmd_chat(args):
     """启动交互式采集助手"""
     from agent.agent_loop import main as chat_main
 
+    # 透传参数给 agent_loop
+    pass_args = []
     if args.resume:
-        # 透传给 agent_loop 的 --resume 参数
-        sys.argv = [sys.argv[0], "--resume", args.resume]
+        pass_args += ["--resume", args.resume]
+    if hasattr(args, "max_context") and args.max_context:
+        pass_args += ["--max-context", str(args.max_context)]
+    if pass_args:
+        sys.argv = [sys.argv[0]] + pass_args
     chat_main()
 
 
@@ -52,6 +63,10 @@ def cmd_resume(args):
 def main():
     parser = argparse.ArgumentParser(description="JobRadar — 职位采集分析工具")
     parser.add_argument("--resume", help="简历文件路径，启动时注入上下文")
+    parser.add_argument(
+        "--max-context", type=int, default=256000,
+        help="最大上下文 token 数（默认 256000），压缩阈值自动设为 70%",
+    )
 
     sub = parser.add_subparsers(dest="command", help="可用命令")
 
