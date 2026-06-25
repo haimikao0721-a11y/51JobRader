@@ -8,14 +8,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from ai_config import client
 from ai_prompt import SYSTEM_PROMPT
-from ai_tools import tools, run_tool
+from ai_tools import get_tools, run_tool
 from tools.compress import check_and_compress
 
 
 def _inject_resume(path: str) -> str:
     """读取简历文件，返回注入文本"""
-    import sys
-    sys.path.insert(0, "..")
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
     from resume import load_resume
 
     return load_resume(path)
@@ -55,7 +54,7 @@ def main():
             response = client.chat.completions.create(
                 model="deepseek-v4-pro",
                 messages=messages,
-                tools=tools,
+                tools=get_tools(),
                 tool_choice="auto",
             )
             msg = response.choices[0].message
@@ -105,8 +104,23 @@ def main():
                 name = tc.function.name
                 args = json.loads(tc.function.arguments)
                 print(f"\n调用 {name}({json.dumps(args, ensure_ascii=False)})...")
-                result = run_tool(name, args)
-                print(f"获取到 {len(result)} 个职位")
+
+                try:
+                    result = run_tool(name, args)
+                except Exception as e:
+                    error_info = {
+                        "error": f"{type(e).__name__}: {str(e)[:300]}",
+                        "hint": "请根据错误信息决定：换参数重试、换其他工具、或告知用户当前不可用",
+                    }
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": json.dumps(error_info, ensure_ascii=False),
+                    })
+                    print(f"工具异常: {type(e).__name__}")
+                    continue
+
+                print(f"返回 {len(result) if isinstance(result, list) else 1} 条结果")
 
                 messages.append(
                     {
