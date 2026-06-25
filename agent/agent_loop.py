@@ -60,7 +60,6 @@ def main():
             msg = response.choices[0].message
 
             if not msg.tool_calls:
-                messages.append(msg)
                 print("\n🤖 ", end="", flush=True)
                 stream = client.chat.completions.create(
                     model="deepseek-v4-pro",
