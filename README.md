@@ -4,6 +4,8 @@
 
 当前工具集以 Playwright 浏览器自动化为主，覆盖职位采集、网页搜索、简历解析等场景。
 
+开源协议：Apache 2.0，可自由商用、修改和分发。
+
 ## 架构设计
 
 ### Agent Runtime 分层
@@ -22,15 +24,16 @@
 |   运行时 (Runtime) | <-- |   记忆 (Memory)   |
 |------------------|     |------------------|
 | agent_loop.py    |     | compress.py      |
-| 主循环调度:       |     | 上下文压缩        |
+| 主循环 + 错误恢复:  |     | 上下文压缩        |
 | 输入→模型→工具→输出 |     | 策略可替换        |
+| 异常 catch→喂回模型 |     |                  |
 +--------+---------+     +------------------+
          |
          v
 +------------------+
 |   工具层 (Tool)    |
 |------------------|
-| ai_tools.py      | 注册 + 调度
+| ai_tools.py      | @register_tool 注册表
 | tools/            |
 |   websearch.py   | Bing 搜索
 |   playwright/     | 浏览器自动化
@@ -42,7 +45,7 @@
 |----|------|---------|
 | **Runtime** | 循环调度：收输入 -> 调模型 -> 执行工具 -> 回传结果 | 与模型和工具完全解耦 |
 | **Model** | LLM API 客户端，当前 DeepSeek | 任意 OpenAI 兼容 API，改 `base_url` + `api_key` 即可 |
-| **Tool** | 工具注册 + 按名调度，工具各自独立实现 | 新增工具只需加文件 + 注册，无需动 Runtime |
+| **Tool** | 装饰器注册（`@register_tool`），按名调度，工具各自独立 | 新增工具加文件 + 一行装饰器，零侵入 Runtime |
 | **Strategy** | System prompt 定义 Agent 行为边界 | 纯文本替换，不涉及代码改动 |
 | **Memory** | 上下文压缩，超阈值自动生成摘要续传 | 压缩算法/阈值/保留轮数均可调 |
 
@@ -109,10 +112,10 @@ main.py                     # CLI 统一入口
 resume.py                   # 文档解析（.pdf / .txt / .md），独立工具
 
 agent/                      # Agent Runtime 层
-  agent_loop.py             # Runtime 主循环：输入 -> 模型 -> 工具 -> 输出
+  agent_loop.py             # Runtime 主循环：输入 -> 模型 -> 工具 -> 输出 + 错误恢复
   ai_config.py              # 模型客户端初始化（DeepSeek 默认，可换）
   ai_prompt.py              # System prompt（业务策略，纯文本替换）
-  ai_tools.py               # 工具注册表 + run_tool 调度
+  ai_tools.py               # 工具注册表（@register_tool 装饰器 + get_tools + run_tool）
 
 tools/                      # 工具层（各自独立，可拔插）
   websearch.py              # 浏览器搜索引擎（当前 Bing）
@@ -152,7 +155,26 @@ tools/                      # 工具层（各自独立，可拔插）
 
 ### 新增工具
 
-标准步骤：在 `tools/` 下新建 `.py` → 在 `ai_tools.py` 注册 name + parameters → 在 `run_tool()` 加一个分支。工具实现和 Runtime 完全解耦，无需懂 Agent 调度逻辑。
+只需一步，零侵入：
+
+```python
+# 在任意模块（如 tools/my_search.py）中
+from agent.ai_tools import register_tool
+
+@register_tool(
+    name="my_search",
+    description="搜索 XX 信息，返回 ...",
+    parameters={
+        "type": "object",
+        "properties": {"q": {"type": "string", "description": "搜索词"}},
+        "required": ["q"],
+    },
+)
+def _handle(q: str):
+    return search(q)
+```
+
+确保该模块在 agent_loop 启动前被 import，工具即自动注册到 `get_tools()` 列表中。无需改 `ai_tools.py` 或 `agent_loop.py` 一行代码。
 
 ### 策略层替换
 
@@ -160,11 +182,11 @@ tools/                      # 工具层（各自独立，可拔插）
 
 ### 优化方向
 
-- **动态工具注册** — `ai_tools.py` 改为装饰器或配置文件注册，新增工具零改动
 - **多工具并行** — `asyncio.gather` 并行调用独立工具，减少轮次等待
 - **记忆持久化** — 会话存储到 SQLite / 向量库，跨 session 保留上下文
 - **日志系统** — 接入 `loguru` 或 `logging`，替代 `print`
 - **结果输出** — 支持 JSON / Markdown / Excel 格式化导出
+- **模型适配层** — 抽象 ModelAdapter，支持 Claude / Gemini / Ollama 等非 OpenAI 协议
 
 ## 上下文压缩（tools/compress.py）
 
