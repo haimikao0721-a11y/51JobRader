@@ -173,6 +173,21 @@ messages, report = check_and_compress(messages, warn_threshold=150_000, max_toke
 messages, report = check_and_compress(messages, warn_threshold=200_000, keep_last=3)
 ```
 
+### 参数控制方式一览
+
+| 参数 | 控制方式 | 位置 |
+|------|---------|------|
+| `--resume` | 指令 | `main.py` / `agent_loop.py` 启动参数 |
+| `--max-context` | 指令 | `main.py` → 透传 `agent_loop.py`，自动算 `warn_threshold` |
+| `--city` | 指令 | `main.py search` 子命令 |
+| `--count` | 指令 | `main.py web` 子命令 |
+| `keep_last`（保留轮数） | 硬编码 | `compress.py` → `compress_messages(keep_last=2)` |
+| `max_tokens`（摘要上限） | 硬编码 | `compress.py` → `compress_messages(max_tokens=2000)` |
+| `_to_md()` 截断策略 | 硬编码 | `compress.py` → 用户前 200 字 / AI 前 300 字 / 工具前 200 字 |
+| `check_and_compress` 触发时机 | 硬编码 | `agent_loop.py` → 工具调用后 + AI 回复后各检查一次 |
+
+> `keep_last`、`max_tokens`、截断策略、触发时机如需调整，目前需要直接修改 `compress.py` 或 `agent_loop.py` 源码。
+
 ## 技术栈
 
 | 组件 | 技术 |
