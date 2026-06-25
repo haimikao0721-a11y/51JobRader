@@ -1,14 +1,40 @@
 import json
+import argparse
+import sys
+import os
+
+# 确保 agent/ 目录下的模块能正常导入
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from ai_config import client
 from ai_prompt import SYSTEM_PROMPT
 from ai_tools import tools, run_tool
 
 
+def _inject_resume(path: str) -> str:
+    """读取简历文件，返回注入文本"""
+    import sys
+    sys.path.insert(0, "..")
+    from resume import load_resume
+
+    return load_resume(path)
+
+
 # ── 主循环 ────────────────────────────────────────────────
 def main():
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--resume", help="简历文件路径（.pdf / .txt / .md）")
+    args, _ = parser.parse_known_args()
+
+    system_content = SYSTEM_PROMPT
+    if args.resume:
+        resume_text = _inject_resume(args.resume)
+        system_content += f"\n\n## 用户简历\n{resume_text}"
+
+    messages = [{"role": "system", "content": system_content}]
     print("职位采集助手已启动（输入 exit 退出）")
+    if args.resume:
+        print(f"📄 已加载简历: {args.resume}")
     print("=" * 50)
     while True:
         user_input = input("\n你: ").strip()
