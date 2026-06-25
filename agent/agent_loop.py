@@ -27,7 +27,7 @@ def main():
     parser.add_argument("--resume", help="简历文件路径（.pdf / .txt / .md）")
     parser.add_argument(
         "--max-context", type=int, default=256000,
-        help="最大上下文 token 数（默认 256000），压缩阈值自动设为 70%",
+        help="最大上下文 token 数（默认 256000），压缩阈值自动设为 70%%",
     )
     args, _ = parser.parse_known_args()
 

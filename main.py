@@ -4,10 +4,9 @@ import sys
 import os
 import argparse
 
-# 确保各模块目录能正常导入
+# 确保各模块目录能正常导入（只加根目录，避免 tools/playwright 与 real playwright 冲突）
 _project_root = os.path.dirname(os.path.abspath(__file__))
-for subdir in ("agent", "tools", "tools/playwright"):
-    sys.path.insert(0, os.path.join(_project_root, subdir))
+sys.path.insert(0, _project_root)
 
 
 def cmd_chat(args):
@@ -30,7 +29,8 @@ def cmd_search(args):
     from tools.playwright.browser import collect_jobs
     import asyncio
 
-    result = asyncio.run(collect_jobs(args.keyword, args.city))
+    cities = args.city.split(",") if args.city else []
+    result = asyncio.run(collect_jobs(args.keyword, cities))
     for i, job in enumerate(result, 1):
         print(f"\n{'=' * 50}")
         print(f"{i}. {job['title']}")
@@ -65,7 +65,7 @@ def main():
     parser.add_argument("--resume", help="简历文件路径，启动时注入上下文")
     parser.add_argument(
         "--max-context", type=int, default=256000,
-        help="最大上下文 token 数（默认 256000），压缩阈值自动设为 70%",
+        help="最大上下文 token 数（默认 256000），压缩阈值自动设为 70%%",
     )
 
     sub = parser.add_subparsers(dest="command", help="可用命令")
